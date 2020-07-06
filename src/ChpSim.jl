@@ -2,7 +2,7 @@ module ChpSim
 
 using Random
 
-import Base.show
+import Base.show, Base.convert
 
 export ChpState, cnot!, hadamard!, phase!, measure!
 
@@ -85,6 +85,10 @@ struct MeasureResult
     function MeasureResult(value; determined)
         new(value, determined)
     end
+end
+
+function convert(::Type{T}, v::ChpSim.MeasureResult)::T where T<:Number
+    return convert(T, v.value)
 end
 
 function Base.show(io::IO, self::MeasureResult)
