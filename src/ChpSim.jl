@@ -4,6 +4,8 @@ using Random
 
 import Base.show
 
+export ChpState, cnot!, hadamard!, phase!, measure!
+
 
 """
     ChpState(num_qubits[, bitpack=true])
@@ -12,7 +14,7 @@ The state of a quantum stabilizer circuit simulation.  I.e. the simulated state
 of a quantum computer after applying only Clifford operations to qubits that all
 start in the `|0⟩` state.
 
-Supported operations: `cnot`, `hadamard`, `phase`, `measure`
+Supported operations: `cnot!`, `hadamard!`, `phase!`, `measure!`
 """
 struct ChpState{MatrixT<:AbstractMatrix{Bool}, VectorT<:AbstractVector{Bool}}
     n::Int
@@ -45,10 +47,14 @@ function ChpState(MatrixT::DataType, VectorT::DataType, num_qubits::Integer)
     ChpState(num_qubits, x, z, r)
 end
 
-function ChpState(num_qubits::Integer, bitpack::Bool=false)
+function ChpState(num_qubits::Integer; bitpack::Bool=false)
     ChpState(bitpack ? BitMatrix : Matrix{Bool},
              bitpack ? BitVector : Vector{Bool},
              num_qubits)
+end
+
+function Base.show(io::IO, self::ChpState)
+    write(io, "$(typeof(self))($(self.n), $(self.x), $(self.z), $(self.r))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", self::ChpState)
@@ -81,9 +87,14 @@ struct MeasureResult
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", self::MeasureResult)
-    write(io, "MeasureResult($(Int(self.value)), "
+function Base.show(io::IO, self::MeasureResult)
+    write(io, "$(typeof(self))($(Int(self.value)), "
               * "determined=$(self.determined))")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", self::MeasureResult)
+    write(io, "$(Int(self.value)) "
+              * "($(self.determined ? "determined" : "random"))")
 end
 
 MeasureResult(1, determined=false)
@@ -95,6 +106,7 @@ MeasureResult(1, determined=false)
 Perform a CNOT gate and update the state.
 """
 function cnot!(state::ChpState, control::Int, target::Int)::Nothing
+    @assert control != target
     state.r .⊻= ((@view state.x[:, control])
                  .& (@view state.z[:, target])
                  .& ((@view state.x[:, target])
@@ -171,9 +183,9 @@ end
 function _measure_random(state::ChpState, qubit::Int, p::Int, rng::AbstractRNG,
                          bias::Real)::MeasureResult
     @assert state.x[state.n + p, qubit]
-    state.x[p, :] .= state.x[state.n + p, :]
+    state.x[p, :] .= @view state.x[state.n + p, :]
     state.x[state.n + p, :] .= 0
-    state.z[p, :] .= state.z[state.n + p, :]
+    state.z[p, :] .= @view state.z[state.n + p, :]
     state.z[state.n + p, :] .= 0
     state.r[p] = state.r[state.n + p]
     state.r[state.n + p] = 0
@@ -183,8 +195,8 @@ function _measure_random(state::ChpState, qubit::Int, p::Int, rng::AbstractRNG,
     px = @view state.x[p, :]
     pz = @view state.z[p, :]
     pr = @view state.r[p]
-    for i in 1:state.n
-        if state.x[i, qubit] && i != qubit && i != state.n + qubit
+    for i in 1:2state.n
+        if state.x[i, qubit] && i != p && i != state.n + p
             _row_mult((@view state.x[i, :]),
                       (@view state.z[i, :]),
                       (@view state.r[i]),
