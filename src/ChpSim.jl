@@ -4,11 +4,11 @@ using Random
 
 import Base.show, Base.convert
 
-export ChpState, cnot!, hadamard!, phase!, measure!
+export ChpState, cnot!, hadamard!, phase!, measure!, reset_all_qubits!
 
 
 """
-    ChpState(num_qubits[, bitpack=true])
+    ChpState(num_qubits[, bitpack=false])
 
 The state of a quantum stabilizer circuit simulation.  I.e. the simulated state
 of a quantum computer after applying only Clifford operations to qubits that all
@@ -38,19 +38,28 @@ function ChpState(MatrixT::DataType, VectorT::DataType, num_qubits::Integer)
     x = similar(MatrixT, 2num_qubits, num_qubits)
     z = similar(MatrixT, 2num_qubits, num_qubits)
     r = similar(VectorT, 2num_qubits)
-    x .= 0
-    x[CartesianIndex.(1:num_qubits, 1:num_qubits)] .= 1  # Primary diagonal
-    z .= 0
-    # Diagonal offset down by n
-    z[CartesianIndex.(num_qubits+1:2num_qubits, 1:num_qubits)] .= 1
-    r .= 0
-    ChpState(num_qubits, x, z, r)
+    reset_all_qubits!(ChpState(num_qubits, x, z, r))
 end
 
 function ChpState(num_qubits::Integer; bitpack::Bool=false)
     ChpState(bitpack ? BitMatrix : Matrix{Bool},
              bitpack ? BitVector : Vector{Bool},
              num_qubits)
+end
+
+"""
+    reset_all_qubits!(state)
+
+Resets all qubits to |0⟩.
+"""
+function reset_all_qubits!(state::ChpState)
+    state.x .= 0
+    state.x[CartesianIndex.(1:state.n, 1:state.n)] .= 1  # Primary diagonal
+    state.z .= 0
+    # Diagonal offset down by n
+    state.z[CartesianIndex.(state.n+1:2state.n, 1:state.n)] .= 1
+    state.r .= 0
+    state
 end
 
 function Base.show(io::IO, self::ChpState)
@@ -100,8 +109,6 @@ function Base.show(io::IO, ::MIME"text/plain", self::MeasureResult)
     write(io, "$(Int(self.value)) "
               * "($(self.determined ? "determined" : "random"))")
 end
-
-MeasureResult(1, determined=false)
 
 
 """
